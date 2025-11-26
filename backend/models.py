@@ -6,7 +6,7 @@ from datetime import datetime
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(20), nullable=False)
+    name = db.Column(db.String(30), nullable=False)
     email = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String, nullable=False)
     fs_uniquifier = db.Column(db.String, unique=True, nullable=False)
@@ -26,22 +26,24 @@ class UsersRoles(db.Model):
 
 class ParkingLot(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(30), nullable=False)
+    name = db.Column(db.String(50), nullable=False)
     address = db.Column(db.String(200), nullable=False)
     pincode = db.Column(db.Text(6), nullable=False)
     no_of_spots = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
     spots = db.relationship("ParkingSpot", backref="lot", lazy=True)
+    parkings = db.relationship("Parking", backref="lot", lazy=True)
 
 class ParkingSpot(db.Model):
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    lot_id = db.Column(db.Integer, db.ForeignKey("parking_lot.id"), nullable=False) 
-    status = db.Column(db.String(20), nullable=False) 
+    id = db.Column(db.Integer, primary_key=True, nullable=False)
+    lot_id = db.Column(db.Integer, db.ForeignKey("parking_lot.id"), primary_key=True, nullable=False) 
+    status = db.Column(db.String(20), default="available") 
     parkings = db.relationship("Parking", backref="spot", lazy=True) 
 
 class Parking(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     spot_id = db.Column(db.Integer, db.ForeignKey("parking_spot.id"), nullable=False)
+    lot_id = db.Column(db.Integer, db.ForeignKey("parking_lot.id"), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     vehicle_reg_no = db.Column(db.String(10), nullable=False)
     parking_time = db.Column(db.DateTime, default=datetime.now())

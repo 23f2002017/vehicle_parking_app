@@ -1,0 +1,16 @@
+/login  POST    -
+/register   POST    -
+/admin  GET    admin
+/user_list  GET    admin
+/view_parking_lot/<int:lot_id>    GET    admin   
+/add_parking_lot    POST    admin 
+/update_parking_lot/<int:lot_id>    UPDATE    admin      Contraction of Parking Lot not allowed as of now
+/delete_parking_lot/<int:lot_id>    DELETE    admin  
+/view_parking_spot/<int:lot_id>/<int:spot_id>    GET    admin
+/delete_parking_spot/<int:lot_id>/<int:spot_id>    GET    admin
+/search    POST    admin/user
+/summary    GET    admin/user
+/user   GET    user  
+/parking_history    GET    user
+/book_parking/<int:lot_id>    POST    user
+/release_parking/<int:parking_id>    GET    user 

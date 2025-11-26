@@ -12,3 +12,5 @@ class LocalDevelopmentConfig(config):
     SECURITY_PASSWORD_HASH = 'bcrypt'
     SECURITY_PASSWORD_SALT = 'this-is-the-salt'
     WTF_CSRF_ENABLED = False 
+    SECURITY_TOKEN_AUTHENTICATION_HEADER = 'auth-token'
+    SECURITY_ANONYMOUS_USER_DISABLED = True 
