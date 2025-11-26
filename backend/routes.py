@@ -3,4 +3,4 @@ from .database import db
 
 @app.route('/')
 def hello_world():
-    return '<h1>Hello, World!</h1>'
+    return '<h1>Hello World</h1>'
