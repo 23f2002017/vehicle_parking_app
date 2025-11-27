@@ -3,11 +3,13 @@ from flask_security import Security, SQLAlchemyUserDatastore
 from backend.models import User, Role
 from backend.config import LocalDevelopmentConfig
 from backend.database import db
+from backend.resources import api                                               #Currently not in use
 
 def createApp():
-    app = Flask(__name__, template_folder="frontend", static_folder="frontend", static_url_path="/static")
+    app = Flask(__name__)
     app.config.from_object(LocalDevelopmentConfig)
     db.init_app(app)
+    api.init_app(app)                                                           #Currently not in use
     datastore = SQLAlchemyUserDatastore(db, User, Role)
     app.security = Security(app, datastore, register_blueprint=False)  
     app.app_context().push()
@@ -15,7 +17,8 @@ def createApp():
 
 app = createApp()
 
-from backend.init_data import *     
+import backend.init_data  
+              
 from backend.routes import *   
  
 if __name__ == "__main__":

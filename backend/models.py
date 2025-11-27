@@ -1,6 +1,5 @@
 from .database import db 
 from flask_security import UserMixin, RoleMixin 
-from datetime import datetime 
 
 # Models 
 
@@ -28,24 +27,25 @@ class ParkingLot(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(50), nullable=False)
     address = db.Column(db.String(200), nullable=False)
-    pincode = db.Column(db.Text(6), nullable=False)
+    pincode = db.Column(db.String(6), nullable=False)
     no_of_spots = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
-    spots = db.relationship("ParkingSpot", backref="lot", lazy=True)
-    parkings = db.relationship("Parking", backref="lot", lazy=True)
+    spots = db.relationship("ParkingSpot", backref="lot", cascade="all,delete", lazy=True)
+    parkings = db.relationship("Parking", backref="lot", cascade="all,delete", lazy=True) 
 
 class ParkingSpot(db.Model):
-    id = db.Column(db.Integer, primary_key=True, nullable=False)
-    lot_id = db.Column(db.Integer, db.ForeignKey("parking_lot.id"), primary_key=True, nullable=False) 
-    status = db.Column(db.String(20), default="available") 
-    parkings = db.relationship("Parking", backref="spot", lazy=True) 
-
-class Parking(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    spot_id = db.Column(db.Integer, db.ForeignKey("parking_spot.id"), nullable=False)
+    spot_no = db.Column(db.Integer, nullable=False)
+    lot_id = db.Column(db.Integer, db.ForeignKey("parking_lot.id"), nullable=False) 
+    status = db.Column(db.String(20), default="available") 
+    parkings = db.relationship("Parking" , backref="spot", cascade="all,delete", lazy=True) 
+
+class Parking(db.Model):        
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     lot_id = db.Column(db.Integer, db.ForeignKey("parking_lot.id"), nullable=False)
+    spot_id = db.Column(db.Integer, db.ForeignKey("parking_spot.id"), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     vehicle_reg_no = db.Column(db.String(10), nullable=False)
-    parking_time = db.Column(db.DateTime, default=datetime.now())
+    parking_time = db.Column(db.DateTime)
     exit_time = db.Column(db.DateTime, nullable=True)
     cost = db.Column(db.Float, nullable=True) 

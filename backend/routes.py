@@ -1,6 +1,7 @@
+import traceback
 from flask import current_app as app, render_template, request, jsonify 
 from flask_security import auth_required, roles_required, roles_accepted
-from flask_security import current_user, hash_password, verify_password, login_user
+from flask_security import current_user, hash_password, verify_password, login_user, logout_user
 from datetime import datetime
 import math
 from .models import User, Role, UsersRoles, ParkingLot, ParkingSpot, Parking
@@ -18,18 +19,26 @@ def login():
     if current_user:
         return jsonify({"message": "Error !! User already logged in"}), 400
     data = request.get_json() 
-    email = data.get("email") 
-    password = data.get("password") 
+    email = data.get("email")
+    password = data.get("password")
     if not email or not password: 
         return jsonify({"message": "Error !! Email and Password are required"}), 400 
     user = datastore.find_user(email=email) 
     if user: 
         if verify_password(password, user.password): 
             login_user(user)
-            return jsonify({"token": user.get_auth_token()})  # This is JWT authentication token 
+            return jsonify({"auth_token": user.get_auth_token(), "role" : user.roles[0].name})  # This is JWT authentication token 
         else: 
-            return jsonify({"error": "Invalid Password"}), 401 
+            return jsonify({"message": "Error !! Incorrect Password"}), 401 
     return jsonify({"message": "Error !! Invalid Email"}), 401 
+
+
+# Logout
+@auth_required("token")
+@app.route("/api/logout")
+def logout():
+    logout_user()
+    return jsonify({"message": "User logged out successfully"}), 200
 
 
 # Registeration
@@ -37,7 +46,7 @@ def login():
 def register():
     data = request.get_json()   
     name = data.get("name")
-    email = data.get("email") 
+    email = data.get("email")
     password = data.get("password")
     if not name or not email or not password:
         return jsonify({"message": "Error !! Name, Email and Password are required"}), 400
@@ -46,18 +55,21 @@ def register():
     try:
         datastore.create_user(name=name, email=email, password=hash_password(password), roles=['user'])
         db.session.commit()
-        return jsonify({'message': 'User created successfully'}), 201
+        return jsonify({'message': 'User registered successfully'}), 201
     except:
         db.session.rollback()
         return jsonify({'message': 'Error !! Something went wrong'}), 500
 
 
 # Admin Dashboard  ----->  Get the info on all Parking Lots on its Dashboard 
-@app.route('/api/admin') 
 @auth_required("token")
 @roles_required("admin")
+@app.route('/api/admin') 
 def admin_dashboard(): 
+    print("Hello")
     parking_lots = ParkingLot.query.order_by(ParkingLot.pincode.asc()).all()
+    if not parking_lots:
+        return jsonify({"message": "No Parking Lots available"}), 404
     parking_lots_json = []
     for parking_lot in parking_lots:
         no_of_spots_available = len([spot for spot in parking_lot.spots if spot.status == "available"])
@@ -68,19 +80,19 @@ def admin_dashboard():
             "address": parking_lot.address,
             "pincode": parking_lot.pincode,
             "no_of_spots_available": no_of_spots_available,
-            "total_no_of_spots": parking_lot.no_of_spots,
-            "price/hr": parking_lot.price,
+            "no_of_spots": parking_lot.no_of_spots,
+            "price": parking_lot.price,
             "total_vehicles_ever_parked": total_vehicles_ever_parked
         })
-    return jsonify({"message":"Welcome to the Admin Dashboard", "parking_lots": parking_lots_json})
+    return jsonify({"message":"Welcome to the Admin's Dashboard", "parking_lots": parking_lots_json})
 
 
 # User List
 @auth_required("token")
 @roles_required("admin")
-@app.route("/api/users_list", methods=["GET"])
+@app.route("/api/users")
 def User_List():
-    users = User.query.order_by(User.id.desc()).all()                #List of user objects
+    users = User.query.order_by(User.id.asc()).all()                # List of all the users
     users_json = []
     if len(users) > 1:
         for user in users:
@@ -94,13 +106,65 @@ def User_List():
                 }
                 users_json.append(user_dict)
         return jsonify({"total_users": len(users_json), "user_list": users_json})        
-    return jsonify({"message" : "No users on the application yet"})     
+    return jsonify({"message" : "No users on the application yet"}), 404   
+
+
+#Blocking/Unblocking a User
+@auth_required("token")
+@roles_required("admin")
+@app.route("/api/users/change_status/<int:user_id>", methods=["PUT"])
+def Change_User_Status(user_id):
+    user = User.query.filter(User.id == user_id).first()
+    if not user:
+        return jsonify({"message": "Error !! User not found"}), 404
+    if user.roles[0].name == "admin":
+        return jsonify({"message": "Error !! Cannot block/unblock an admin user"}), 400
+    if user.parkings:
+        return jsonify({"message": "Error !! Cannot block a user with active parkings"}), 400
+    try:
+        if user.active:
+            user.active = False
+            db.session.commit()
+            return jsonify({"message": "User blocked successfully"}), 200
+        else:
+            user.active = True
+            db.session.commit()
+            return jsonify({"message": "User unblocked successfully"}), 200
+    except:
+        return jsonify({"message": "Error !! Something went wrong"}), 500    
+    
+
+# Parkings List
+@auth_required("token")
+@roles_required("admin")
+@app.route("/api/parkings")
+def Parkings_List():
+    parkings = Parking.query.order_by(Parking.parking_time.desc()).all()
+    if len(parkings) == 0:
+        return jsonify({"message": "No Parkings yet"}), 404
+    parkings_json = []
+    for parking in parkings:
+        parking_dict = {
+            "id": parking.id,
+            "lot_id": parking.lot.id,
+            "spot_id": parking.spot.id,
+            "spot_no": parking.spot.spot_no,
+            "user_id": parking.user_id,
+            "lot_address" : parking.lot.address,
+            "user_name": parking.driver.name,
+            "vehicle_reg_no": parking.vehicle_reg_no,
+            "parking_time": parking.parking_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "exit_time": parking.exit_time.strftime("%Y-%m-%d %H:%M:%S") if parking.exit_time else None,
+            "cost": parking.cost if parking.cost else None
+        }
+        parkings_json.append(parking_dict)
+    return jsonify({"parkings_list": parkings_json, "total_parkings": len(parkings_json)})
 
 
 # View a Parking Lot
 @auth_required("token")
 @roles_required("admin")
-@app.route("/api/view_parking_lot/<int:lot_id>")
+@app.route("/api/parking_lot/<int:lot_id>")
 def View_Parking(lot_id):
     parking_lot = ParkingLot.query.filter(ParkingLot.id == lot_id).first()
     if not parking_lot:
@@ -113,15 +177,16 @@ def View_Parking(lot_id):
             "name": parking_lot.name,
             "address": parking_lot.address,
             "pincode": parking_lot.pincode,
-            "total_no_of_spots": parking_lot.no_of_spots,
+            "no_of_spots": parking_lot.no_of_spots,
             "no_of_spots_available": no_of_spots_available,
-            "price/hr": parking_lot.price,
+            "price": parking_lot.price,
             "total_vehicles_ever_parked": total_vehicles_ever_parked
         }
     spots_json = []
     for spot in spots:
         spots_json.append({
             "id" : spot.id,
+            "spot_no" : spot.spot_no,
             "status" : spot.status
         })
     return jsonify({"message":"Parking Lot Details", "parking_lot_details": lot_datails, "parking_spots": spots_json})    
@@ -130,7 +195,7 @@ def View_Parking(lot_id):
 # Adding a Parking Lot
 @auth_required("token")
 @roles_required("admin")
-@app.route("/api/add_parking_lot", methods=["POST"])
+@app.route("/api/parking_lot", methods=["POST"])
 def Add_Parking():
     data = request.get_json()
     name = data.get("name")
@@ -138,29 +203,29 @@ def Add_Parking():
     pincode = data.get("pincode")
     no_of_spots = data.get("no_of_spots")
     price = data.get("price")
+    print(type(no_of_spots), type(price))
     if None in [name, address, pincode, no_of_spots, price]:
         return jsonify({"message": "Error !! All fields are required"}), 400
     if no_of_spots <= 0:
         return jsonify({"message": "Error !! Number of spots should be greater than 0"}), 400
-    else:
-        try:
-            parking_lot = ParkingLot(name=name, address=address, pincode=pincode, no_of_spots=no_of_spots, price=price)
-            db.session.add(parking_lot)
-            db.session.flush()                   # Flush the session to get the parking_lot.id
-            for id in range(1, no_of_spots+1):
-                parking_spot = ParkingSpot(id=id, lot_id=parking_lot.id)
-                db.session.add(parking_spot)
-            db.session.commit()
-            return jsonify({"message": "Parking lot added successfully"}), 201
-        except:
-            db.session.rollback()
-            return jsonify({"message": "Error !! Something went wrong"}), 500
+    try:
+        parking_lot = ParkingLot(name=name, address=address, pincode=pincode, no_of_spots=no_of_spots, price=price)
+        db.session.add(parking_lot)
+        db.session.flush()                   # Flush the session to get the parking_lot.id
+        for num in range(no_of_spots):
+            parking_spot = ParkingSpot(spot_no=num, lot_id=parking_lot.id)
+            db.session.add(parking_spot)
+        db.session.commit()
+        return jsonify({"message": "Parking lot added successfully"}), 201
+    except:
+        db.session.rollback()
+        return jsonify({"message": "Error !! Something went wrong"}), 500
 
 
 # Updating a Parking Lot
 @auth_required("token")
 @roles_required("admin")
-@app.route("/api/update_parking_lot/<int:lot_id>", methods=["PUT"])
+@app.route("/api/parking_lot/<int:lot_id>", methods=["PUT"])
 def Update_Parking(lot_id):
     parking_lot = ParkingLot.query.filter(ParkingLot.id == lot_id).first()
     if not parking_lot:
@@ -175,16 +240,17 @@ def Update_Parking(lot_id):
                 parking_lot.address = data["address"]
         if data.get("pincode"):
             if data["pincode"] != parking_lot.pincode:
-                parking_lot.pincode = data["pincode"]  
+                parking_lot.pincode = data["pincode"]
         if data.get("price"):
             if data["price"] != parking_lot.price:
                 parking_lot.price = data["price"]  
         if data.get("no_of_spots"):
             if data["no_of_spots"] != parking_lot.no_of_spots:
                 if data["no_of_spots"] > parking_lot.no_of_spots:
-                    for id in range(parking_lot.no_of_spots+1, data["no_of_spots"]+1):
-                        parking_spot = ParkingSpot(id=id, lot_id=parking_lot.id)
+                    for num in range(parking_lot.no_of_spots, data["no_of_spots"]):
+                        parking_spot = ParkingSpot(spot_no=num, lot_id=parking_lot.id)
                         db.session.add(parking_spot) 
+                    parking_lot.no_of_spots = data["no_of_spots"]    
                 else:
                     return jsonify({"message": "Error !! Number of spots should be greater than current number of spots"}), 400           
         db.session.commit()    
@@ -197,7 +263,7 @@ def Update_Parking(lot_id):
 # Deleting a Parking Lot 
 @auth_required("token")
 @roles_required("admin")
-@app.route("/api/delete_parking_lot/<int:lot_id>", methods=["DELETE"])
+@app.route("/api/parking_lot/<int:lot_id>", methods=["DELETE"])
 def Delete_Parking(lot_id):
     parking_lot = ParkingLot.query.filter(ParkingLot.id == lot_id).first()
     if not parking_lot:
@@ -205,25 +271,23 @@ def Delete_Parking(lot_id):
     spots = parking_lot.spots
     for spot in spots:
         if spot.status != "available":
-            return jsonify({"message": "Error !! Parking Lot is still occupied"}), 400
-    try: 
-        for spot in spots: 
-            db.session.delete(spot) 
-        db.session.commit()                 # Here, use of db.session.flush() wont work !!
-        db.session.delete(parking_lot)
+            return jsonify({"message": "Error !! Parking Lot is still occupied"}), 400                 
+    try:
+        db.session.delete(parking_lot)  
         db.session.commit() 
-        return jsonify({"message": "Parking lot deleted successfully"}), 200
+        return jsonify({"message": "Parking lot deleted successfully"}), 200  
     except:
         db.session.rollback()
+        print(traceback.format_exc())
         return jsonify({"message": "Error !! Something went wrong"}), 500  
 
 
 # View a Parking Spot
 @auth_required("token")
-@roles_required("admin")
-@app.route("/api/view_parking_spot/<int:lot_id>/<int:spot_id>")
-def View_Parking_Spot(lot_id, spot_id):
-    parking_spot = ParkingSpot.query.filter(ParkingSpot.lot_id == lot_id, ParkingSpot.id == spot_id).first()
+@roles_required("admin")            
+@app.route("/api/parking_spot/<int:spot_id>")
+def View_Parking_Spot(spot_id):
+    parking_spot = ParkingSpot.query.filter(ParkingSpot.id == spot_id).first()
     if not parking_spot:
         return jsonify({"message": "Error !! Parking Spot not found"}), 404
     total_vehicles_ever_parked = len(parking_spot.parkings)
@@ -231,13 +295,15 @@ def View_Parking_Spot(lot_id, spot_id):
         return jsonify({
             "id" : parking_spot.id,
             "parking_lot_id" : parking_spot.lot_id,
+            "spot_no" : parking_spot.spot_no,
             "total_vehicles_ever_parked" : total_vehicles_ever_parked,
             "status" : parking_spot.status
         })   
-    current_parking = Parking.query.filter(Parking.spot_id == parking_spot.id, Parking.lot_id == parking_spot.lot_id).order_by(Parking.parking_time.desc()).first()
+    current_parking = Parking.query.filter(Parking.spot_id == parking_spot.id).order_by(Parking.parking_time.desc()).first()
     return jsonify({
         "id" : parking_spot.id,
         "parking_lot_id" : parking_spot.lot_id,
+        "spot_no" : parking_spot.spot_no,
         "total_vehicles_ever_parked" : total_vehicles_ever_parked,
         "status" : parking_spot.status,
         "current_parking" : {
@@ -247,14 +313,14 @@ def View_Parking_Spot(lot_id, spot_id):
             "parking_time" : current_parking.parking_time
         }        
     })
-        
+
 
 # Delete a Parking Spot
 @auth_required("token")
 @roles_required("admin")
-@app.route("/api/delete_parking_spot/<int:lot_id>/<int:spot_id>", methods=["DELETE"])
-def Delete_Parking_Spot(lot_id, spot_id):
-    parking_spot = ParkingSpot.query.filter(ParkingSpot.lot_id == lot_id, ParkingSpot.id == spot_id).first()
+@app.route("/api/parking_spot/<int:spot_id>", methods=["DELETE"])
+def Delete_Parking_Spot(spot_id):
+    parking_spot = ParkingSpot.query.filter(ParkingSpot.id == spot_id).first()
     if not parking_spot:
         return jsonify({"message": "Error !! Parking Spot not found"}), 404 
     if parking_spot.status == "occupied":
@@ -284,14 +350,14 @@ def Search():
                 user = User.query.filter(User.id == search_value).first()
                 if not user:
                     return jsonify({"message": "Error !! User not found"}), 404
-                return jsonify({"message": "User found", "user_info":{"name" : user.name, "email": user.email, "is_active": user.active, "role": user.roles[0].name}})
+                return jsonify({"message": "User found", "users_list":[{"id": user.id, "name" : user.name, "email": user.email, "is_active": user.active, "total_parkings": len(user.parkings)}]})
             users = []
             if search_by == "email":
                 users = User.query.filter(User.email.ilike(f"%{search_value}%")).order_by(User.name).all()
             if search_by == "name":
                 users = User.query.filter(User.name.ilike(f"%{search_value}%")).order_by(User.name).all()    
             if not users:
-                return jsonify({"message": "Error !! No user not found"}), 404
+                return jsonify({"message": "Error !! User not found"}), 404
             users_json = []
             for user in users:
                 users_json.append({
@@ -301,7 +367,7 @@ def Search():
                     "is_active": user.active,
                     "total_parkings" : len(user.parkings)
                 })
-            return jsonify({"message": "Users found", "users_list": users_json})
+            return jsonify({"message": "Users found", "users_list": users_json}) 
         if search_for == "parking_lot":
             if search_by == "id":
                 parking_lot = ParkingLot.query.filter(ParkingLot.id == search_value).first()
@@ -309,14 +375,14 @@ def Search():
                     return jsonify({"message": "Error !! Parking Lot not found"}), 404
                 no_of_spots_available = len([spot for spot in parking_lot.spots if spot.status == "available"])
                 total_vehicles_ever_parked = len(parking_lot.parkings)
-                return jsonify({"message": "Parking Lot found", "parking_lot_details" : {"id": parking_lot.id, 
+                return jsonify({"message": "Parking Lot found", "parking_lot_list" : [{"id": parking_lot.id, 
                                                                                         "name": parking_lot.name, 
                                                                                         "address": parking_lot.address, 
                                                                                         "pincode": parking_lot.pincode, 
-                                                                                        "total_no_of_spots": parking_lot.no_of_spots, 
+                                                                                        "no_of_spots": parking_lot.no_of_spots, 
                                                                                         "no_of_spots_available": no_of_spots_available, 
-                                                                                        "price/hr": parking_lot.price, 
-                                                                                        "total_vehicles_ever_parked": total_vehicles_ever_parked }})
+                                                                                        "price": parking_lot.price, 
+                                                                                        "total_vehicles_ever_parked": total_vehicles_ever_parked }]})
             parking_lots = []
             if search_by == "name":
                 parking_lots = ParkingLot.query.filter(ParkingLot.name.ilike(f"%{search_value}%")).order_by(ParkingLot.id).all()
@@ -324,51 +390,70 @@ def Search():
                 parking_lots = ParkingLot.query.filter(ParkingLot.address.ilike(f"%{search_value}%")).order_by(ParkingLot.id).all()
             if search_by == "pincode":
                 parking_lots = ParkingLot.query.filter(ParkingLot.pincode == search_value).order_by(ParkingLot.id).all()
-            if not parking_lots:
+            if not parking_lots: 
                 return jsonify({"message": "Error !! No Parking Lot found"}), 404    
-            parking_lost_json = []
+            parking_lot_json = []
             for lot in parking_lots:
                 no_of_spots_available = len([spot for spot in lot.spots if spot.status == "available"])
                 total_vehicles_ever_parked = len(lot.parkings)
-                parking_lost_json.append({
+                parking_lot_json.append({
                     "id": lot.id,
                     "name": lot.name,
                     "address": lot.address,
                     "pincode": lot.pincode,
-                    "total_no_of_spots": lot.no_of_spots,
+                    "no_of_spots": lot.no_of_spots,
                     "no_of_spots_available": no_of_spots_available,
-                    "price/hr": lot.price,
+                    "price": lot.price,
                     "total_vehicles_ever_parked": total_vehicles_ever_parked
                 })
-            return jsonify({"message": "Parking Lots found", "parking_lot_list": parking_lost_json})      
+            return jsonify({"message": "Parking Lots found", "parking_lot_list": parking_lot_json})       
         if search_for == "parking":
             if search_by == "id":
                 parking = Parking.query.filter(Parking.id == search_value).first()    
                 if not parking:
                     return jsonify({"message": "Error !! Parking not found"}), 404
-                if parking.exit_time: 
-                    return jsonify({"message": "Parking found", "parking_info":{"id" : parking.id, "lot_id" : parking.lot_id, "spot_id" : parking.spot_id, "user_id" : parking.user_id, "vehicle_reg_no" : parking.vehicle_reg_no, "parking_time" : parking.parking_time, "exit_time" : parking.exit_time, "cost" : parking.cost}})
-                return jsonify({"message": "Parking found", "parking_info":{"id" : parking.id, "lot_id" : parking.lot_id, "spot_id" : parking.spot_id, "user_id" : parking.user_id, "vehicle_reg_no" : parking.vehicle_reg_no, "parking_time" : parking.parking_time, "parking_status" : "Occupied"}})
+                return jsonify({"message": "Parking found", "parking_list":[{
+                    "id" : parking.id, 
+                    "lot_id" : parking.lot_id, 
+                    "spot_id" : parking.spot.id, 
+                    "spot_no" :parking.spot.spot_no, 
+                    "user_id" : parking.user_id, 
+                    "lot_address" : parking.lot.address,
+                    "user_name": parking.driver.name,
+                    "vehicle_reg_no" : parking.vehicle_reg_no, 
+                    "parking_time": parking.parking_time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "exit_time": parking.exit_time.strftime("%Y-%m-%d %H:%M:%S") if parking.exit_time else None,
+                    "cost": parking.cost if parking.cost else None
+                }]})
             parkings = []
             if search_by == "user_id":
                 parkings = Parking.query.filter(Parking.user_id == search_value).order_by(Parking.parking_time).all()
             if search_by == "lot_id":
-                parkings = Parking.query.filter(Parking.lot_id == search_value).order_by(Parking.parking_time).all()
-            if search_by == "spot_id":
-                parkings = Parking.query.filter(Parking.spot_id == search_value).order_by(Parking.parking_time).all()
+                parkings = Parking.query.filter(Parking.lot_id == search_value).order_by(Parking.parking_time).all()    
+            if search_by == "spot_no":
+                parkings = Parking.query.filter(Parking.spot_no == search_value).order_by(Parking.parking_time).all()
             if search_by == "vehicle_reg_no":
                 parkings = Parking.query.filter(Parking.vehicle_reg_no.ilike(f"%{search_value}%")).order_by(Parking.parking_time).all()
             if not parkings:
                 return jsonify({"message": "Error !! No Parking found"}), 404
             parkings_json = []
             for parking in parkings:
-                if parking.exit_time: 
-                    parkings_json.append({"id" : parking.id, "lot_id" : parking.lot_id, "spot_id" : parking.spot_id, "user_id" : parking.user_id, "vehicle_reg_no" : parking.vehicle_reg_no, "parking_time" : parking.parking_time, "exit_time" : parking.exit_time, "cost" : parking.cost})
-                else:    
-                    parkings_json.append({"id" : parking.id, "lot_id" : parking.lot_id, "spot_id" : parking.spot_id, "user_id" : parking.user_id, "vehicle_reg_no" : parking.vehicle_reg_no, "parking_time" : parking.parking_time, "parking_status" : "Occupied"})     
+                parkings_json.append({
+                    "id" : parking.id, 
+                    "lot_id" : parking.lot_id, 
+                    "spot_id" : parking.spot.id, 
+                    "spot_no" :parking.spot.spot_no, 
+                    "user_id" : parking.user_id, 
+                    "lot_address" : parking.lot.address,
+                    "user_name": parking.driver.name,
+                    "vehicle_reg_no" : parking.vehicle_reg_no, 
+                    "parking_time": parking.parking_time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "exit_time": parking.exit_time.strftime("%Y-%m-%d %H:%M:%S") if parking.exit_time else None,
+                    "cost": parking.cost if parking.cost else None
+                })
             return jsonify({"message": "Parkings found", "parking_list": parkings_json})           
         return jsonify({"message": "Error !! Invalid search criteria"}), 400
-    else:
+    else: 
         parking_lots = []
         if search_by == "name":
             parking_lots = ParkingLot.query.filter(ParkingLot.name.ilike(f"%{search_value}%")).order_by(ParkingLot.pincode).all()
@@ -388,9 +473,9 @@ def Search():
                 "name": lot.name,
                 "address": lot.address,
                 "pincode": lot.pincode,
-                "total_no_of_spots": lot.no_of_spots,
-                "no_of_spots_available": no_of_spots_available,
-                "price/hr": lot.price
+                "price": lot.price,
+                "no_of_spots": lot.no_of_spots,
+                "no_of_spots_available": no_of_spots_available
             })
         return jsonify({"message": "Parking Lots found", "parking_lot_list": parking_lost_json}) 
 
@@ -405,6 +490,45 @@ def summary():
         pass
     else:
         pass
+
+
+# User Profile
+@auth_required("token")
+@roles_required("user")
+@app.route("/api/profile")
+def User_Profile():
+    user = current_user
+    user_data = {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+    }
+    return jsonify({"message":"This is the user profile", "user_profile": user_data})
+
+
+# Edit User Profile
+@auth_required("token")
+@roles_required("user")
+@app.route("/api/profile", methods=["PUT"])
+def Edit_User_Profile():
+    user = current_user
+    data = request.get_json()
+    try:
+        if data.get("name"):
+            if data["name"] != user.name:
+                user.name = data["name"]
+        if data.get("email"):
+            if data["email"] != user.email:
+                if datastore.find_user(email=data["email"]):
+                    return jsonify({"message": "Error !! Email already in use"}), 400
+                user.email = data["email"]
+        if data.get("password"):
+            user.password = hash_password(data["password"])
+        db.session.commit()    
+        return jsonify({"message": "Profile updated successfully"}), 200 
+    except:
+        db.session.rollback()
+        return jsonify({"message": "Error !! Something went wrong"}), 500
 
 
 # User Dashboard
@@ -422,27 +546,27 @@ def User_Dashboard():
             "name": parking_lot.name,
             "address": parking_lot.address,
             "pincode": parking_lot.pincode,
-            "total_no_of_spots": parking_lot.no_of_spots,
+            "price": parking_lot.price,
+            "no_of_spots": parking_lot.no_of_spots,
             "no_of_spots_available": no_of_spots_available,
-            "price": parking_lot.price
         })
+    user_parkings_json = []    
     user_parkings = sorted(user.parkings, key= lambda obj : obj.parking_time, reverse=True)
-    user_parkings_json = []
     for parking in user_parkings:
-        parking_lot = ParkingLot.query.filter(ParkingLot.id == parking.lot_id).first()
         if not parking.exit_time:
             user_parkings_json.append({
-                "id" : parking.id,
-                "spot_id" : parking.spot_id,
-                "parking_lot_name" : parking_lot.name,
-                "parking_lot_address" : parking_lot.address,
-                "parking_lot_pincode" : parking_lot.pincode,
-                "vehicle_reg_no" : parking.vehicle_reg_no,
-                "parking_time" : parking.parking_time,
-                "parking_status" : "Occupied"
+                "id" : parking.id, 
+                "lot_id" : parking.lot_id, 
+                "spot_id" : parking.spot.id, 
+                "spot_no" :parking.spot.spot_no, 
+                "lot_name" : parking.lot.name,
+                "lot_address" : parking.lot.address,
+                "lot_pincode": parking.lot.pincode,
+                "lot_price" : parking.lot.price,
+                "vehicle_reg_no" : parking.vehicle_reg_no, 
+                "parking_time": parking.parking_time.strftime("%Y-%m-%d %H:%M:%S"),
             })
     return jsonify({"message":"This is the user dashboard", 
-                    "user_info":{"name" : user.name, "email": user.email, "is_active": user.active}, 
                     "current_parkings" : user_parkings_json, 
                     "parking_lot_list" : parking_lots_json})    
 
@@ -456,26 +580,39 @@ def Parking_History():
     user_parkings = sorted(user.parkings, key= lambda obj : obj.parking_time, reverse=True)
     user_parkings_json = []
     for parking in user_parkings:
-        parking_lot = ParkingLot.query.filter(ParkingLot.id == parking.lot_id).first()
         if parking.exit_time:
             user_parkings_json.append({
-                "id" : parking.id,
-                "spot_id" : parking.spot_id,
-                "parking_lot_name" : parking_lot.name,
-                "parking_lot_address" : parking_lot.address,
-                "parking_lot_pincode" : parking_lot.pincode,
-                "vehicle_reg_no" : parking.vehicle_reg_no,
-                "parking_time" : parking.parking_time,
-                "exit_time" : parking.exit_time,
-                "cost" : parking.cost
+                "id" : parking.id, 
+                "lot_id" : parking.lot_id, 
+                "spot_id" : parking.spot.id, 
+                "spot_no" :parking.spot.spot_no, 
+                "lot_name" : parking.lot.name,
+                "lot_address" : parking.lot.address,
+                "lot_pincode": parking.lot.pincode,
+                "lot_price" : parking.lot.price,
+                "vehicle_reg_no" : parking.vehicle_reg_no, 
+                "parking_time": parking.parking_time.strftime("%Y-%m-%d %H:%M:%S"),
+                "exit_time": parking.exit_time.strftime("%Y-%m-%d %H:%M:%S"),
+                "cost": parking.cost
             })
     return jsonify({"message":"This is the Parking History",  
                     "parking_history" : user_parkings_json})
 
 
+# Function to validate vehicle registration number
+def validate_vehicle_reg_no(vehicle_reg_no):
+    if len(vehicle_reg_no) == 10:
+        if vehicle_reg_no[:2].isalpha():
+            if vehicle_reg_no[4:6].isalpha():
+                if vehicle_reg_no[2:4].isnumeric():
+                    if vehicle_reg_no[6:].isnumeric():
+                        return True
+    return False
+
+
 # Booking a Parking Spot
-@auth_required("token")
-@roles_required("user")
+@auth_required("token") 
+@roles_required("user") 
 @app.route("/api/book_parking/<int:lot_id>", methods=["POST"])
 def Book_Parking(lot_id):
     user = current_user
@@ -487,10 +624,12 @@ def Book_Parking(lot_id):
         return jsonify({"message": "Error !! No Parking Spot available"}), 400
     data = request.get_json()
     vehicle_reg_no = data.get("vehicle_reg_no")
-    if not vehicle_reg_no:
+    if not vehicle_reg_no: 
         return jsonify({"message": "Error !! Vehicle Registration Number is required"}), 400
+    if not validate_vehicle_reg_no(vehicle_reg_no):
+        return jsonify({"message": "Error !! Incorrect format of Vehicle Registration Number"}), 400
     try:
-        parking = Parking(spot_id=parking_spot.id, lot_id=parking_lot.id, user_id=user.id, vehicle_reg_no=vehicle_reg_no)
+        parking = Parking(spot_id=parking_spot.id, lot_id=parking_lot.id, user_id=user.id, vehicle_reg_no=vehicle_reg_no.upper(), parking_time=datetime.now())
         db.session.add(parking)
         parking_spot.status = "occupied"
         db.session.commit()
@@ -510,8 +649,8 @@ def Release_Parking(parking_id):
         return jsonify({"message": "Error !! Parking not found"}), 404
     if parking.exit_time:
         return jsonify({"message": "Error !! Parking already released"}), 400
-    lot = ParkingLot.query.filter(ParkingLot.id == parking.lot_id).first()
-    spot = ParkingSpot.query.filter(ParkingSpot.id == parking.spot_id, ParkingSpot.lot_id == parking.lot_id).first()   
+    lot = parking.lot
+    spot = parking.spot   
     current_time = datetime.now()
     time_difference = current_time - parking.parking_time
     time_difference_in_seconds = time_difference.total_seconds()
@@ -526,4 +665,3 @@ def Release_Parking(parking_id):
     except:
         db.session.rollback()
         return jsonify({"message": "Error !! Something went wrong"}), 500
-    
