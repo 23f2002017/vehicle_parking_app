@@ -1,11 +1,14 @@
 import traceback
-from flask import current_app as app, render_template, request, jsonify 
+from flask import current_app as app, render_template, request, jsonify, send_from_directory 
 from flask_security import auth_required, roles_required, roles_accepted
 from flask_security import current_user, hash_password, verify_password, login_user, logout_user
 from datetime import datetime
-import math
+from pytz import timezone
+import math, time
+from celery.result import AsyncResult
 from .models import User, Role, UsersRoles, ParkingLot, ParkingSpot, Parking
 from .database import db
+from .tasks import user_csv_report_task, daily_reminder_task
 
 datastore = app.security.datastore
 
@@ -216,6 +219,7 @@ def Add_Parking():
             parking_spot = ParkingSpot(spot_no=num, lot_id=parking_lot.id)
             db.session.add(parking_spot)
         db.session.commit()
+        daily_reminder_task.delay(data)
         return jsonify({"message": "Parking lot added successfully"}), 201
     except:
         db.session.rollback()
@@ -487,9 +491,25 @@ def Search():
 def summary():
     user = current_user
     if user.roles[0].name == "admin":
-        pass
+        total_users = len(User.query.filter(User.roles.any(name="user")).all())
+        total_parking_lots = len(ParkingLot.query.all())
+        total_parking_spots = len(ParkingSpot.query.all())
+        total_parkings = len(Parking.query.all())
+        total_current_parkings = len(Parking.query.filter(Parking.exit_time == None).all())
+        total_revenue = sum([parking.cost for parking in Parking.query.filter(Parking.cost != None).all()])
+        return jsonify({"total_users": total_users,
+                        "total_parking_lots": total_parking_lots,
+                        "total_parking_spots": total_parking_spots,
+                        "total_parkings": total_parkings,
+                        "total_current_parkings": total_current_parkings,
+                        "total_revenue": total_revenue})
     else:
-        pass
+        total_parkings = len(user.parkings)
+        total_current_parkings = len([parking for parking in user.parkings if not parking.exit_time])
+        total_amount_spent = sum([parking.cost for parking in user.parkings if parking.cost])
+        return jsonify({"total_parkings": total_parkings,
+                        "total_current_parkings": total_current_parkings,
+                        "total_amount_spent": total_amount_spent})
 
 
 # User Profile
@@ -629,7 +649,7 @@ def Book_Parking(lot_id):
     if not validate_vehicle_reg_no(vehicle_reg_no):
         return jsonify({"message": "Error !! Incorrect format of Vehicle Registration Number"}), 400
     try:
-        parking = Parking(spot_id=parking_spot.id, lot_id=parking_lot.id, user_id=user.id, vehicle_reg_no=vehicle_reg_no.upper(), parking_time=datetime.now())
+        parking = Parking(spot_id=parking_spot.id, lot_id=parking_lot.id, user_id=user.id, vehicle_reg_no=vehicle_reg_no.upper(), parking_time=datetime.now(timezone("Asia/Kolkata")))
         db.session.add(parking)
         parking_spot.status = "occupied"
         db.session.commit()
@@ -651,7 +671,7 @@ def Release_Parking(parking_id):
         return jsonify({"message": "Error !! Parking already released"}), 400
     lot = parking.lot
     spot = parking.spot   
-    current_time = datetime.now()
+    current_time = datetime.now(timezone("Asia/Kolkata"))
     time_difference = current_time - parking.parking_time
     time_difference_in_seconds = time_difference.total_seconds()
     time_difference_in_hrs = time_difference_in_seconds / 3600
@@ -665,3 +685,18 @@ def Release_Parking(parking_id):
     except:
         db.session.rollback()
         return jsonify({"message": "Error !! Something went wrong"}), 500
+    
+
+# Creatng the user triggered CSV report 
+@app.route("/api/create_user_report/<user_id>")
+def user_report(user_id):
+    result = user_csv_report_task.delay(user_id)
+    return jsonify({
+        "task_id" : result.id
+    })
+
+# Downloading the report  
+@app.route("/api/download_user_report/<task_id>")
+def get_report(task_id):
+    result = AsyncResult(task_id)
+    return send_from_directory("csv_reports", result.result)

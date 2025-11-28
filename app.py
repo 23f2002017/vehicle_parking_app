@@ -3,23 +3,34 @@ from flask_security import Security, SQLAlchemyUserDatastore
 from backend.models import User, Role
 from backend.config import LocalDevelopmentConfig
 from backend.database import db
-from backend.resources import api                                               #Currently not in use
+from backend.celery_config import celery_init_app
+from celery.schedules import crontab
+from backend.tasks import monthly_activity_report_task 
 
 def createApp():
     app = Flask(__name__)
     app.config.from_object(LocalDevelopmentConfig)
     db.init_app(app)
-    api.init_app(app)                                                           #Currently not in use
     datastore = SQLAlchemyUserDatastore(db, User, Role)
     app.security = Security(app, datastore, register_blueprint=False)  
     app.app_context().push()
     return app 
 
 app = createApp()
+celery = celery_init_app(app)
+#celery.autodiscover_tasks()
 
 import backend.init_data  
-              
+           
 from backend.routes import *   
+
+# Celery Beat Configuration
+@celery.on_after_finalize.connect
+def setup_periodic_tasks(sender, **kwargs):
+    sender.add_periodic_task(
+        crontab(minute='*/1'),
+        monthly_activity_report_task.s() 
+    )
  
 if __name__ == "__main__":
     app.run() 

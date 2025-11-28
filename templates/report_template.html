@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+            th, td {
+                text-align: center;
+                border: 1px solid;
+                padding: 4px;
+            }
+            table {
+                border: 1px solid;
+            }
+        </style>
+    <title>Monthly Activity Report</title>
+</head>
+<body>
+    <p>Dear {{ data['name'] }}</p>
+    <p>This is your activity report for the last 30 days.</p>
+    {% if data['parkings'] | length > 0 %}
+        <ul>
+            <li>Total Parkings: {{ data['total_parkings'] }}</li>
+            <li>Total Amount Spent: Rs. {{ data['total_spent'] }}</li>
+        </ul>
+        <h3>Parkings :</h3>
+        <table style="width:100%;">
+            <tr>
+                <th>ID</th>
+                <th>Vehicle</th>
+                <th>Lot Name</th>
+                <th>Lot Address</th>
+                <th>Spot No.</th>
+                <th>Parking Time</th>
+                <th>Exit Time</th>
+                <th>Cost (Rs.)</th>
+            </tr>
+            {% for parking in data['parkings'] %}
+                <tr>
+                    <td>{{ parking['id'] }}</td>
+                    <td>{{ parking['vehicle_reg_no'] }}</td>
+                    <td>{{ parking['lot_name'] }}</td>
+                    <td>{{ parking['lot_address'] }}</td>
+                    <td>{{ parking['spot_no'] }}</td>
+                    <td>{{ parking['parking_time'] }}</td>
+                    <td>{{ parking['exit_time'] }}</td>
+                    <td>{{ parking['cost'] }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+        <p>Thank You for choosing our platfrom.</p>
+    {% else %}  
+        <p>You actually have no activity on our application for the last 30 days.</p>
+        <p>We hope to see you soon!</p>
+    {% endif %}
+</body>
+</html>

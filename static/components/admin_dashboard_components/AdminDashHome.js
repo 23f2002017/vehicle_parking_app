@@ -18,7 +18,7 @@ export default {
                                 <span style="padding-left: 50px; font-size: large;"><b>Total Spots</b> : {{lot.no_of_spots}}</span>
                                 <span style="padding-left: 50px; font-size: large;"><b>Spots Available</b> : {{lot.no_of_spots_available}}</span>
                                 <span style="float: right; padding-right: 20px; font-size: large;">
-                                    <router-link :to="{name: 'view_lot', params: {id: lot.id}}">View</router-link> | <router-link :to="{name: 'update_lot', params: {id: lot.id}}">Edit</router-link> | <a href="#/admin_dashboard/parking_lots" @click.prevent="DeleteLot(lot.id)"> Delete </a>
+                                    <router-link :to="{name: 'view_lot', params: {id: lot.id}}"> View </router-link> | <router-link :to="{name: 'update_lot', params: {id: lot.id}}"> Edit </router-link> | <a href="#/admin_dashboard/parking_lots" @click.prevent="() => DeleteLot(lot.id)"> Delete </a>
                                 </span>
                             </div>
                         </div>

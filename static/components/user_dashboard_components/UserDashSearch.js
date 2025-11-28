@@ -40,7 +40,7 @@ export default {
                                     <span style="padding-left: 50px; font-size: large;"><b>Total Spots</b> : {{lot.no_of_spots}}</span>
                                     <span style="padding-left: 50px; font-size: large;"><b>Spots Available</b> : {{lot.no_of_spots_available}}</span>
                                     <span style="float: right; padding-right: 50px;">
-                                        <button @click="BookParking(lot.id)" style="font-size: medium;"> Book a Spot </button>
+                                        <button @click="() => BookParking(lot.id)" style="font-size: medium;"> Book a Spot </button>
                                     </span>
                                 </div>
                             </div>

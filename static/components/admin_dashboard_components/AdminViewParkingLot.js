@@ -25,12 +25,12 @@ export default {
             <div>
                 <div v-for="spot in spots" style="padding: 5px; margin-right: 300px; font-size: medium">
                     <div style="border: 1px solid black; border-radius: 5px; padding: 8px; background-color: #f3f2f2ff;">
-                        <details @click="GetSpotDetails(spot.id)">
+                        <details @click="() => GetSpotDetails(spot.id)">
                             <summary>
                                 <span style="padding-left: 20px;"><b>Spot ID</b> : {{spot.id}}</span>
                                 <span style="padding-left: 50px;"><b>Spot no.</b> : {{spot.spot_no}}</span>
                                 <span style="padding-left: 50px;"><b>Status</b> : {{spot.status}}</span>  
-                                <button v-if="spot.status == 'available'" @click="DeleteSpot(spot.id)" style="float: right;"> Delete Spot </button>
+                                <button v-if="spot.status == 'available'" @click="() => DeleteSpot(spot.id)" style="float: right;"> Delete Spot </button>
                                 <button v-else style="float: right;" disabled> Delete Spot </button> 
                             </summary> 
                             <div v-if="ClickedSpot === spot.id" style="padding-left: 20px; font-size: medium;">

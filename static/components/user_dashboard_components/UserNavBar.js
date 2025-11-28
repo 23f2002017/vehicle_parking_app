@@ -7,7 +7,7 @@ export default {
                 <router-link style="margin-right: 20px;" to="/user_dashboard/search">Search</router-link> 
                 <router-link style="margin-right: 20px;" to="/user_dashboard/summary">Summary</router-link>  
                 <a href="/#/login" @click="LogoutUser" >Logout</a> 
-                <span style="float: right;">Hello, {{userData.name}}&nbsp;&nbsp;<router-link to="/user_dashboard/edit_profile">Edit Profile</a></span>
+                <span style="float: right;">Hello, {{userData.name}} &nbsp; <router-link to="/user_dashboard/edit_profile"><button style="font-size: medium">Edit Profile</button></router-link> &nbsp; <button @click="DownloadCSVReport(userData.id)" style="font-size: medium">Download Report</button></span>
             </p>
         </div>    
     `,
@@ -41,6 +41,13 @@ export default {
             if (res.ok) {
                 this.userData = data.user_profile 
             }
+        },
+        DownloadCSVReport: async function(id) {
+            fetch(`/api/create_user_report/${id}`)
+                .then(res => res.json())
+                .then(data =>
+                    window.location.href = `/api/download_user_report/${data.task_id}`
+                )
         }
     },
     mounted(){

@@ -17,8 +17,8 @@ export default {
                         <td style="text-align: center; border: 1px solid black; padding: 8px;">{{user.name}}</td>
                         <td style="text-align: center; border: 1px solid black; padding: 8px;">{{user.email}}</td>
                         <td style="text-align: center; border: 1px solid black; padding: 8px;">{{user.total_parkings}}</td>
-                        <td v-if="user.is_active" style="text-align: center; border: 1px solid black; padding: 8px;"><button @click="ChangeStatus(user.id)">Block</button></td>
-                        <td v-else style="text-align: center; border: 1px solid black; padding: 8px;"><button @click="ChangeStatus(user.id)">Unblock</button></td>
+                        <td v-if="user.is_active" style="text-align: center; border: 1px solid black; padding: 8px;"><button @click="() => ChangeStatus(user.id)">Block</button></td>
+                        <td v-else style="text-align: center; border: 1px solid black; padding: 8px;"><button @click="() => ChangeStatus(user.id)">Unblock</button></td>
                     </tr>
                 </table>
             </div>   

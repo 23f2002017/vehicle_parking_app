@@ -19,7 +19,7 @@ export default {
                                 <span style="font-size: large;"><b>Parking Time</b> : {{parking.parking_time}}</span>
                                 <span style="margin-left: 40px; font-size: large;"><b>Parking Rate</b> : Rs. {{parking.lot_price}}/hr</span>
                                 <span style="float: right; padding-right: 50px;">
-                                    <button @click="ReleaseParking(parking.id)" style="font-size: medium;">Release the Spot</button>
+                                    <button @click="() => ReleaseParking(parking.id)" style="font-size: medium;">Release the Spot</button>
                                 </span>
                             </div>
                         </div>
@@ -44,7 +44,7 @@ export default {
                             <span style="padding-left: 50px; font-size: large;"><b>Total Spots</b> : {{lot.no_of_spots}}</span>
                             <span style="padding-left: 50px; font-size: large;"><b>Spots Available</b> : {{lot.no_of_spots_available}}</span>
                             <span style="float: right; padding-right: 50px;">
-                                <button @click="BookParking(lot.id)" style="font-size: medium;"> Book a Spot </button>
+                                <button @click="() => BookParking(lot.id)" style="font-size: medium;"> Book a Spot </button>
                             </span>
                         </div>
                     </div>
