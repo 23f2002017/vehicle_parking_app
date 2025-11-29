@@ -11,7 +11,7 @@ class User(db.Model, UserMixin):
     fs_uniquifier = db.Column(db.String, unique=True, nullable=False)
     active = db.Column(db.Boolean, default=True)
     roles = db.relationship('Role', backref='users', secondary='users_roles')
-    parkings = db.relationship("Parking", backref="driver", lazy=True)
+    parkings = db.relationship("Parking", backref="driver", lazy='joined')
 
 class Role(db.Model, RoleMixin):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True) 
@@ -20,8 +20,8 @@ class Role(db.Model, RoleMixin):
 
 class UsersRoles(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)   
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)  
-    role_id = db.Column(db.Integer, db.ForeignKey("role.id"), nullable=False) 
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable='joined')  
+    role_id = db.Column(db.Integer, db.ForeignKey("role.id"), nullable='joined') 
 
 class ParkingLot(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -30,15 +30,15 @@ class ParkingLot(db.Model):
     pincode = db.Column(db.String(6), nullable=False)
     no_of_spots = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
-    spots = db.relationship("ParkingSpot", backref="lot", cascade="all,delete", lazy=True)
-    parkings = db.relationship("Parking", backref="lot", cascade="all,delete", lazy=True) 
+    spots = db.relationship("ParkingSpot", backref="lot", cascade="all,delete", lazy="joined")
+    parkings = db.relationship("Parking", backref="lot", cascade="all,delete", lazy='joined') 
 
 class ParkingSpot(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     spot_no = db.Column(db.Integer, nullable=False)
     lot_id = db.Column(db.Integer, db.ForeignKey("parking_lot.id"), nullable=False) 
     status = db.Column(db.String(20), default="available") 
-    parkings = db.relationship("Parking" , backref="spot", cascade="all,delete", lazy='subquery') 
+    parkings = db.relationship("Parking", backref="spot", cascade="all,delete", lazy="joined")  
 
 class Parking(db.Model):        
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)

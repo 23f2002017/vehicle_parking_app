@@ -5,26 +5,24 @@ from flask_security import auth_required, roles_required, roles_accepted
 from flask_security import current_user, hash_password, verify_password, login_user, logout_user
 from datetime import datetime
 from pytz import timezone
-import math, time
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
+import math
 from celery.result import AsyncResult
 from .models import User, Role, UsersRoles, ParkingLot, ParkingSpot, Parking
 from .database import db
 from .tasks import user_csv_report_task, daily_reminder_task
 from .cache_config import cache_init_app
 
-
 datastore = app.security.datastore
 cache = cache_init_app(app)
-
-
-def clear_cache(prefix):
-    if cache.has(prefix):
-        cache.delete(prefix)
 
 
 @app.route('/')
 def home():
     return render_template('index.html')
+
 
 # Login
 @app.route("/api/login", methods=['POST']) 
@@ -68,7 +66,7 @@ def register():
     try:
         datastore.create_user(name=name, email=email, password=hash_password(password), roles=['user'])
         db.session.commit()
-        clear_cache('users_list')
+        cache.delete('users_list')
         return jsonify({'message': 'User registered successfully'}), 201
     except:
         db.session.rollback()
@@ -79,7 +77,7 @@ def register():
 @auth_required("token")
 @roles_required("admin")
 @app.route('/api/admin')
-@cache.cached(timeout=300, key_prefix='admin_dashboard')
+@cache.cached(timeout=30, key_prefix='admin_dashboard')
 def Admin_Dashboard(): 
     parking_lots = ParkingLot.query.order_by(ParkingLot.pincode.asc()).all()
     if not parking_lots:
@@ -105,7 +103,7 @@ def Admin_Dashboard():
 @auth_required("token")
 @roles_required("admin")
 @app.route("/api/users")
-@cache.cached(timeout=300, key_prefix='users_list')
+@cache.cached(timeout=30, key_prefix='users_list')
 def Users_List():
     users = User.query.order_by(User.id.asc()).all()                # List of all the users
     users_json = []
@@ -142,12 +140,12 @@ def Change_User_Status(user_id):
         if user.active:
             user.active = False
             db.session.commit()
-            clear_cache('users_list')
+            cache.delete('users_list')
             return jsonify({"message": "User blocked successfully"}), 200
         else:
             user.active = True
             db.session.commit()
-            clear_cache('users_list')
+            cache.delete('users_list')
             return jsonify({"message": "User unblocked successfully"}), 200
     except:
         return jsonify({"message": "Error !! Something went wrong"}), 500    
@@ -157,7 +155,7 @@ def Change_User_Status(user_id):
 @auth_required("token")
 @roles_required("admin")
 @app.route("/api/parkings")
-@cache.cached(timeout=300, key_prefix='parkings_list')
+@cache.cached(timeout=30, key_prefix='parkings_list')
 def Parkings_List():
     parkings = Parking.query.order_by(Parking.parking_time.desc()).all()
     if len(parkings) == 0:
@@ -223,7 +221,6 @@ def Add_Parking():
     pincode = data.get("pincode")
     no_of_spots = data.get("no_of_spots")
     price = data.get("price")
-    print(type(no_of_spots), type(price))
     if None in [name, address, pincode, no_of_spots, price]:
         return jsonify({"message": "Error !! All fields are required"}), 400
     if no_of_spots <= 0:
@@ -236,8 +233,8 @@ def Add_Parking():
             parking_spot = ParkingSpot(spot_no=num, lot_id=parking_lot.id)
             db.session.add(parking_spot)
         db.session.commit()
-        clear_cache('admin_dashboard')
-        clear_cache('parking_lots_list')
+        cache.delete('admin_dashboard')
+        cache.delete('parking_lots_list')
         daily_reminder_task.delay(data)
         return jsonify({"message": "Parking lot added successfully"}), 201
     except:
@@ -277,8 +274,8 @@ def Update_Parking(lot_id):
                 else:
                     return jsonify({"message": "Error !! Number of spots should be greater than current number of spots"}), 400           
         db.session.commit()    
-        clear_cache('admin_dashboard')
-        clear_cache('parking_lots_list')
+        cache.delete('admin_dashboard')
+        cache.delete('parking_lots_list')
         return jsonify({"message": "Parking lot updated successfully"}), 200 
     except:
         db.session.rollback()
@@ -300,8 +297,8 @@ def Delete_Parking(lot_id):
     try:
         db.session.delete(parking_lot)  
         db.session.commit() 
-        clear_cache('admin_dashboard')
-        clear_cache('parking_lots_list')
+        cache.delete('admin_dashboard')
+        cache.delete('parking_lots_list')
         return jsonify({"message": "Parking lot deleted successfully"}), 200  
     except:
         db.session.rollback()
@@ -356,8 +353,8 @@ def Delete_Parking_Spot(spot_id):
         parking_spot.lot.no_of_spots -= 1
         db.session.delete(parking_spot) 
         db.session.commit()
-        clear_cache('admin_dashboard')
-        clear_cache('parking_lots_list')
+        cache.delete('admin_dashboard')
+        cache.delete('parking_lots_list')
         return jsonify({"message": "Parking Spot deleted successfully"}), 200
     except:
         db.session.rollback()
@@ -515,6 +512,8 @@ def Search():
 @app.route("/api/summary")
 def summary():
     user = current_user
+    if not user:
+        return jsonify({"message": "Error !! User is blocked"}), 403
     if user.roles[0].name == "admin":
         total_users = len(User.query.filter(User.roles.any(name="user")).all())
         total_parking_lots = len(ParkingLot.query.all())
@@ -522,19 +521,62 @@ def summary():
         total_parkings = len(Parking.query.all())
         total_current_parkings = len(Parking.query.filter(Parking.exit_time == None).all())
         total_revenue = sum([parking.cost for parking in Parking.query.filter(Parking.cost != None).all()])
-        return jsonify({"total_users": total_users,
-                        "total_parking_lots": total_parking_lots,
-                        "total_parking_spots": total_parking_spots,
-                        "total_parkings": total_parkings,
-                        "total_current_parkings": total_current_parkings,
-                        "total_revenue": total_revenue})
+
+        plt.figure(figsize=(10, 6))
+        plt.bar(
+            ['Total Parking Spots', 'Total Available Parking Spots', 'Total Users', 'Total Current Parkings'],
+            [total_parking_spots, total_parking_spots - total_current_parkings, total_users,  total_current_parkings], 
+            edgecolor="white", width = 0.5, color=['deepskyblue', 'seagreen', 'crimson', 'goldenrod']
+        )
+        plt.title("Parking Management System Summary")
+        plt.xlabel("Metrics")
+        plt.ylabel("Count")
+        plt.savefig("./static/images/summary.png")
+        plt.close()
+
+        return jsonify({'details' : 
+                            [{ "total_users": total_users,
+                            "total_parking_lots": total_parking_lots,
+                            "total_parking_spots": total_parking_spots,
+                            "total_current_parkings": total_current_parkings,
+                            "total_available_parking_spots": total_parking_spots - total_current_parkings,
+                            "total_parkings": total_parkings,
+                            "total_revenue": total_revenue}], 
+                        'role': 'admin'})
     else:
+
         total_parkings = len(user.parkings)
         total_current_parkings = len([parking for parking in user.parkings if not parking.exit_time])
         total_amount_spent = sum([parking.cost for parking in user.parkings if parking.cost])
-        return jsonify({"total_parkings": total_parkings,
-                        "total_current_parkings": total_current_parkings,
-                        "total_amount_spent": total_amount_spent})
+
+        plt.figure(figsize=(10, 6))
+        plt.bar(
+            ['Total Parkings', 'Total Current Parkings'],
+            [total_parkings, total_current_parkings], 
+            edgecolor="white", width = 0.5, color=['deepskyblue', 'goldenrod']
+        )
+        plt.title("Parking Management System Summary")
+        plt.xlabel("Metrics")
+        plt.ylabel("Count")
+        plt.savefig("./static/images/summary.png")
+        plt.close()
+
+        return jsonify({'details' : 
+                            [{"total_parkings": total_parkings,
+                            "total_current_parkings": total_current_parkings,
+                            "total_amount_spent": total_amount_spent}],
+                        'role': 'user'})
+
+
+# User Status
+@auth_required("token")
+@roles_required("user")
+@app.route("/api/status")
+def User_Status():  
+    user = current_user
+    if not user:
+        return jsonify({"message": "Error !! User is blocked"}), 403
+    return jsonify({"message": "User is active"}), 200
 
 
 # User Profile
@@ -543,6 +585,8 @@ def summary():
 @app.route("/api/profile")
 def User_Profile():
     user = current_user
+    if not user:
+        return jsonify({"message": "Error !! User is blocked"}), 403
     user_data = {
         "id": user.id,
         "name": user.name,
@@ -576,22 +620,13 @@ def Edit_User_Profile():
         return jsonify({"message": "Error !! Something went wrong"}), 500
 
 
-@cache.cached(timeout=300, key_prefix='parking_lots_list')
-def get_parking_lots():
-    return ParkingLot.query.order_by(ParkingLot.pincode.asc()).all()
-
-@cache.memoize(timeout=300)
-def get_user_parkings(user):
-    return sorted(user.parkings, key= lambda obj : obj.parking_time, reverse=True)
-
-
 # User Dashboard
 @auth_required("token")
 @roles_required("user")
 @app.route("/api/user")
 def User_Dashboard():
     user = current_user
-    parking_lots = get_parking_lots()
+    parking_lots = ParkingLot.query.order_by(ParkingLot.pincode.asc()).all()
     parking_lots_json = []
     for parking_lot in parking_lots:
         no_of_spots_available = len([spot for spot in parking_lot.spots if spot.status == "available"])
@@ -605,7 +640,7 @@ def User_Dashboard():
             "no_of_spots_available": no_of_spots_available,
         })
     user_parkings_json = []    
-    user_parkings = get_user_parkings(user)
+    user_parkings = sorted(user.parkings, key= lambda obj : obj.parking_time, reverse=True)
     for parking in user_parkings:
         if not parking.exit_time:
             user_parkings_json.append({
@@ -631,14 +666,14 @@ def User_Dashboard():
 @app.route("/api/parking_history")
 def Parking_History():
     user = current_user
-    user_parkings = get_user_parkings(user)
+    user_parkings = sorted(user.parkings, key= lambda obj : obj.parking_time, reverse=True)
     user_parkings_json = []
     for parking in user_parkings:
         if parking.exit_time:
             user_parkings_json.append({
                 "id" : parking.id, 
                 "lot_id" : parking.lot_id, 
-                "spot_id" : parking.spot.id, 
+                "spot_id" : parking.spot_id, 
                 "spot_no" :parking.spot.spot_no, 
                 "lot_name" : parking.lot.name,
                 "lot_address" : parking.lot.address,
@@ -687,10 +722,9 @@ def Book_Parking(lot_id):
         db.session.add(parking)
         parking_spot.status = "occupied"
         db.session.commit()
-        clear_cache('parkings_list')
-        clear_cache('admin_dashboard')
-        clear_cache('users_list')
-        cache.delete_memoized(get_user_parkings, user)
+        cache.delete('parkings_list')
+        cache.delete('admin_dashboard')
+        cache.delete('users_list')
         return jsonify({"message": "Parking booked successfully"}), 201
     except:
         db.session.rollback()
@@ -721,9 +755,9 @@ def Release_Parking(parking_id):
         parking.cost = cost
         spot.status = "available"
         db.session.commit()
-        clear_cache('parkings_list')
-        clear_cache('admin_dashboard')
-        clear_cache('users_list')
+        cache.delete('parkings_list')
+        cache.delete('admin_dashboard')
+        cache.delete('users_list')
         return jsonify({"message": "Parking released successfully", "parking_cost": cost}), 200
     except:
         db.session.rollback()

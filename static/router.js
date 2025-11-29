@@ -9,13 +9,12 @@ import AdminUpdateParkingLot from './components/admin_dashboard_components/Admin
 import AdminDashUsers from './components/admin_dashboard_components/AdminDashUsers.js'
 import AdminDashParkings from "./components/admin_dashboard_components/AdminDashParkings.js"
 import AdminDashSearch from './components/admin_dashboard_components/AdminDashSearch.js'
-import AdminDashSummary from './components/admin_dashboard_components/AdminDashSummary.js'
 import UserDashboard from "./components/UserDashboard.js"
 import UserEditProfile from "./components/user_dashboard_components/UserEditProfile.js"
 import UserDashHome from './components/user_dashboard_components/UserDashHome.js'
 import UserDashParkHist from './components/user_dashboard_components/UserDashParkHist.js'
 import UserDashSearch from './components/user_dashboard_components/UserDashSearch.js'
-import UserDashSummary from './components/user_dashboard_components/UserDashSummary.js'
+import Summary from './components/Summary.js'
 
 
 const routes = [
@@ -33,7 +32,6 @@ const routes = [
       {path: "parkings", component: AdminDashParkings},
       {path: "update_lot/:id", name: "update_lot", component: AdminUpdateParkingLot},
       {path: "search", component: AdminDashSearch},
-      {path: "summary", component: AdminDashSummary}
     ]
   },
   {
@@ -43,10 +41,10 @@ const routes = [
       {path: "home", component: UserDashHome},
       {path: "parking_history", component: UserDashParkHist},
       {path: "search", component: UserDashSearch},
-      {path: "summary", component: UserDashSummary},
       {path: "edit_profile", component: UserEditProfile}
     ]
-  }
+  },
+  {path: "/summary", component: Summary}
 ]
 
 const router = new VueRouter({

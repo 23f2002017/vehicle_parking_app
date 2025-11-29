@@ -6,7 +6,7 @@ export default {
                 <router-link style="margin-right: 20px;" to="/admin_dashboard/users">Users</router-link> 
                 <router-link style="margin-right: 20px;" to="/admin_dashboard/parkings">Parkings</router-link>
                 <router-link style="margin-right: 20px;" to="/admin_dashboard/search">Search</router-link> 
-                <router-link style="margin-right: 20px;" to="/admin_dashboard/summary">Summary</router-link>  
+                <router-link style="margin-right: 20px;" to="/summary">Summary</router-link>  
                 <a style="margin-right: 550px;" href="/#/login" @click="LogoutUser" >Logout</a> 
             </p>
         </div>    

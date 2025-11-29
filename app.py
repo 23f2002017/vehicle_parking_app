@@ -20,8 +20,7 @@ app = createApp()
 celery = celery_init_app(app)
 #celery.autodiscover_tasks()
 
-import backend.init_data  
-           
+from backend.init_data import * 
 from backend.routes import *   
 
 # Celery Beat Configuration
