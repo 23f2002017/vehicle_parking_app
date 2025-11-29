@@ -1,5 +1,6 @@
 import traceback
-from flask import current_app as app, render_template, request, jsonify, send_from_directory 
+from flask import current_app as app
+from flask import render_template, request, jsonify, send_from_directory 
 from flask_security import auth_required, roles_required, roles_accepted
 from flask_security import current_user, hash_password, verify_password, login_user, logout_user
 from datetime import datetime
@@ -9,8 +10,17 @@ from celery.result import AsyncResult
 from .models import User, Role, UsersRoles, ParkingLot, ParkingSpot, Parking
 from .database import db
 from .tasks import user_csv_report_task, daily_reminder_task
+from .cache_config import cache_init_app
+
 
 datastore = app.security.datastore
+cache = cache_init_app(app)
+
+
+def clear_cache(prefix):
+    if cache.has(prefix):
+        cache.delete(prefix)
+
 
 @app.route('/')
 def home():
@@ -58,6 +68,7 @@ def register():
     try:
         datastore.create_user(name=name, email=email, password=hash_password(password), roles=['user'])
         db.session.commit()
+        clear_cache('users_list')
         return jsonify({'message': 'User registered successfully'}), 201
     except:
         db.session.rollback()
@@ -67,9 +78,9 @@ def register():
 # Admin Dashboard  ----->  Get the info on all Parking Lots on its Dashboard 
 @auth_required("token")
 @roles_required("admin")
-@app.route('/api/admin') 
-def admin_dashboard(): 
-    print("Hello")
+@app.route('/api/admin')
+@cache.cached(timeout=300, key_prefix='admin_dashboard')
+def Admin_Dashboard(): 
     parking_lots = ParkingLot.query.order_by(ParkingLot.pincode.asc()).all()
     if not parking_lots:
         return jsonify({"message": "No Parking Lots available"}), 404
@@ -94,7 +105,8 @@ def admin_dashboard():
 @auth_required("token")
 @roles_required("admin")
 @app.route("/api/users")
-def User_List():
+@cache.cached(timeout=300, key_prefix='users_list')
+def Users_List():
     users = User.query.order_by(User.id.asc()).all()                # List of all the users
     users_json = []
     if len(users) > 1:
@@ -123,15 +135,19 @@ def Change_User_Status(user_id):
     if user.roles[0].name == "admin":
         return jsonify({"message": "Error !! Cannot block/unblock an admin user"}), 400
     if user.parkings:
-        return jsonify({"message": "Error !! Cannot block a user with active parkings"}), 400
+        for parking in user.parkings:
+            if not parking.exit_time:   
+                return jsonify({"message": "Error !! Cannot block a user with active parkings"}), 400
     try:
         if user.active:
             user.active = False
             db.session.commit()
+            clear_cache('users_list')
             return jsonify({"message": "User blocked successfully"}), 200
         else:
             user.active = True
             db.session.commit()
+            clear_cache('users_list')
             return jsonify({"message": "User unblocked successfully"}), 200
     except:
         return jsonify({"message": "Error !! Something went wrong"}), 500    
@@ -141,6 +157,7 @@ def Change_User_Status(user_id):
 @auth_required("token")
 @roles_required("admin")
 @app.route("/api/parkings")
+@cache.cached(timeout=300, key_prefix='parkings_list')
 def Parkings_List():
     parkings = Parking.query.order_by(Parking.parking_time.desc()).all()
     if len(parkings) == 0:
@@ -219,6 +236,8 @@ def Add_Parking():
             parking_spot = ParkingSpot(spot_no=num, lot_id=parking_lot.id)
             db.session.add(parking_spot)
         db.session.commit()
+        clear_cache('admin_dashboard')
+        clear_cache('parking_lots_list')
         daily_reminder_task.delay(data)
         return jsonify({"message": "Parking lot added successfully"}), 201
     except:
@@ -258,6 +277,8 @@ def Update_Parking(lot_id):
                 else:
                     return jsonify({"message": "Error !! Number of spots should be greater than current number of spots"}), 400           
         db.session.commit()    
+        clear_cache('admin_dashboard')
+        clear_cache('parking_lots_list')
         return jsonify({"message": "Parking lot updated successfully"}), 200 
     except:
         db.session.rollback()
@@ -279,6 +300,8 @@ def Delete_Parking(lot_id):
     try:
         db.session.delete(parking_lot)  
         db.session.commit() 
+        clear_cache('admin_dashboard')
+        clear_cache('parking_lots_list')
         return jsonify({"message": "Parking lot deleted successfully"}), 200  
     except:
         db.session.rollback()
@@ -333,6 +356,8 @@ def Delete_Parking_Spot(spot_id):
         parking_spot.lot.no_of_spots -= 1
         db.session.delete(parking_spot) 
         db.session.commit()
+        clear_cache('admin_dashboard')
+        clear_cache('parking_lots_list')
         return jsonify({"message": "Parking Spot deleted successfully"}), 200
     except:
         db.session.rollback()
@@ -551,13 +576,22 @@ def Edit_User_Profile():
         return jsonify({"message": "Error !! Something went wrong"}), 500
 
 
+@cache.cached(timeout=300, key_prefix='parking_lots_list')
+def get_parking_lots():
+    return ParkingLot.query.order_by(ParkingLot.pincode.asc()).all()
+
+@cache.memoize(timeout=300)
+def get_user_parkings(user):
+    return sorted(user.parkings, key= lambda obj : obj.parking_time, reverse=True)
+
+
 # User Dashboard
 @auth_required("token")
 @roles_required("user")
 @app.route("/api/user")
 def User_Dashboard():
     user = current_user
-    parking_lots = ParkingLot.query.order_by(ParkingLot.pincode.asc()).all()
+    parking_lots = get_parking_lots()
     parking_lots_json = []
     for parking_lot in parking_lots:
         no_of_spots_available = len([spot for spot in parking_lot.spots if spot.status == "available"])
@@ -571,7 +605,7 @@ def User_Dashboard():
             "no_of_spots_available": no_of_spots_available,
         })
     user_parkings_json = []    
-    user_parkings = sorted(user.parkings, key= lambda obj : obj.parking_time, reverse=True)
+    user_parkings = get_user_parkings(user)
     for parking in user_parkings:
         if not parking.exit_time:
             user_parkings_json.append({
@@ -597,7 +631,7 @@ def User_Dashboard():
 @app.route("/api/parking_history")
 def Parking_History():
     user = current_user
-    user_parkings = sorted(user.parkings, key= lambda obj : obj.parking_time, reverse=True)
+    user_parkings = get_user_parkings(user)
     user_parkings_json = []
     for parking in user_parkings:
         if parking.exit_time:
@@ -653,6 +687,10 @@ def Book_Parking(lot_id):
         db.session.add(parking)
         parking_spot.status = "occupied"
         db.session.commit()
+        clear_cache('parkings_list')
+        clear_cache('admin_dashboard')
+        clear_cache('users_list')
+        cache.delete_memoized(get_user_parkings, user)
         return jsonify({"message": "Parking booked successfully"}), 201
     except:
         db.session.rollback()
@@ -670,9 +708,11 @@ def Release_Parking(parking_id):
     if parking.exit_time:
         return jsonify({"message": "Error !! Parking already released"}), 400
     lot = parking.lot
-    spot = parking.spot   
-    current_time = datetime.now(timezone("Asia/Kolkata"))
-    time_difference = current_time - parking.parking_time
+    spot = parking.spot 
+    local_tz = timezone("Asia/Kolkata")  
+    current_time = datetime.now(local_tz)
+    parking_time = local_tz.localize(parking.parking_time)
+    time_difference = current_time - parking_time
     time_difference_in_seconds = time_difference.total_seconds()
     time_difference_in_hrs = time_difference_in_seconds / 3600
     cost = math.ceil(time_difference_in_hrs) * lot.price
@@ -681,6 +721,9 @@ def Release_Parking(parking_id):
         parking.cost = cost
         spot.status = "available"
         db.session.commit()
+        clear_cache('parkings_list')
+        clear_cache('admin_dashboard')
+        clear_cache('users_list')
         return jsonify({"message": "Parking released successfully", "parking_cost": cost}), 200
     except:
         db.session.rollback()

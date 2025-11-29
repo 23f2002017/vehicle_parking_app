@@ -38,7 +38,7 @@ class ParkingSpot(db.Model):
     spot_no = db.Column(db.Integer, nullable=False)
     lot_id = db.Column(db.Integer, db.ForeignKey("parking_lot.id"), nullable=False) 
     status = db.Column(db.String(20), default="available") 
-    parkings = db.relationship("Parking" , backref="spot", cascade="all,delete", lazy=True) 
+    parkings = db.relationship("Parking" , backref="spot", cascade="all,delete", lazy='subquery') 
 
 class Parking(db.Model):        
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)

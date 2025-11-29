@@ -44,7 +44,8 @@ def monthly_activity_report_task():
             'total_spent': 0,
             'parkings' : []
         }
-        parkings = [parking for parking in user.parkings if parking.parking_time >= datetime.now(timezone("Asia/Kolkata")) - timedelta(days=30)]
+        local_tz = timezone("Asia/Kolkata")
+        parkings = [parking for parking in user.parkings if local_tz.localize(parking.parking_time) >= datetime.now(local_tz) - timedelta(days=30)]
         for parking in parkings:
             parking_data = {
                 'id': parking.id,
