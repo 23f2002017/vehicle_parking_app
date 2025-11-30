@@ -18,7 +18,6 @@ def createApp():
 
 app = createApp()
 celery = celery_init_app(app)
-#celery.autodiscover_tasks()
 
 from backend.init_data import * 
 from backend.routes import *   
@@ -27,7 +26,7 @@ from backend.routes import *
 @celery.on_after_finalize.connect
 def setup_periodic_tasks(sender, **kwargs):
     sender.add_periodic_task(
-        crontab(minute='*/1'),
+        crontab(day_of_month='1'),
         monthly_activity_report_task.s() 
     )
  

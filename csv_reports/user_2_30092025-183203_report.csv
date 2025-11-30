@@ -1,7 +1,0 @@
-Name,User01
-E-Mail,user01@user.com
-Total Parkings,2
-
-Parking ID,Vehicle Registration Number,Parking Lot ID,Parking Lot Name,Parking Lot Address,Spot Number,Parking Time,Exit Time,Status,Cost
-1,MH04FC4804,2,Parking02,"Dadar East, Mumbai, 400014",0,09-09-2025 18:45:51,09-09-2025 18:47:13,Released,25.0
-2,MH04FC4804,3,Parking01,"Bandra West, Mumbai, 400054",0,15-09-2025 15:11:22,N/A,Occupied,N/A

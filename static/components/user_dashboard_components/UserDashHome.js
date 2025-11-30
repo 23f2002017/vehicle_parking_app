@@ -17,7 +17,7 @@ export default {
                             </div>
                             <div style="margin: 0px 0px 10px 10px;">
                                 <span style="font-size: large;"><b>Parking Time</b> : {{parking.parking_time}}</span>
-                                <span style="margin-left: 40px; font-size: large;"><b>Parking Rate</b> : Rs. {{parking.lot_price}}/hr</span>
+                                <span style="margin-left: 40px; font-size: large;"><b>Parking Rate</b> : ₹{{parking.lot_price}}/hr</span>
                                 <span style="float: right; padding-right: 50px;">
                                     <button @click="() => ReleaseParking(parking.id)" style="font-size: medium;">Release the Spot</button>
                                 </span>
@@ -28,7 +28,6 @@ export default {
                 <hr/>
             </div>
             <h2>Parking Lots</h2>  
-            <p v-if="message != ''" style="color: red; margin-left: 20px;">{{message}}<p>
             <p v-if="parking_lots.length === 0" style="color: red; margin-left: 20px;">No parking lots available</p>
             <div v-else style="border: 3px solid black; width: 900px; border-radius: 3px; margin: 20px;">
                 <p style="padding-left: 18px; font-size: large">Please enter your vehicle registration number : <input v-model="vehicle_reg_no" style="font-size: large; width: 150px" type=text placeholder="MH01BD5745"></p>
@@ -37,7 +36,7 @@ export default {
                         <div style="padding: 10px;">
                             <span style="font-size: xx-large;">{{lot.name}}</span>
                             <span style="padding-left: 15px; font-size: large;">{{lot.address}}, <b>{{lot.pincode}}</b></span>
-                            <span style="float: right; padding-right: 20px; font-size: xx-large;">Rs. {{lot.price}}/hr</span>
+                            <span style="float: right; padding-right: 20px; font-size: xx-large;">₹{{lot.price}}/hr</span>
                         </div>
                         <div  style="padding: 0px 0px 10px 10px;">
                             <span style="font-size: large;"><b>ID</b> : {{lot.id}}</span>
@@ -56,8 +55,7 @@ export default {
         return {
             parking_lots : [],
             current_parkings : [],
-            vehicle_reg_no : "",
-            message : ""       
+            vehicle_reg_no : ""
         }
     },
     methods : {

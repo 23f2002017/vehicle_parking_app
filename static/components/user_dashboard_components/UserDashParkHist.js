@@ -2,8 +2,8 @@ export default {
     template : `
         <div style="margin-bottom: 20px;">
             <h2>Past Parkings</h2>
-            <p v-if="past_parkings.length === 0" style="color: red">No Parkings History Found</p>
-            <div style="border: 3px solid black; width: 900px; margin: 20px;">
+            <p v-if="past_parkings.length === 0" style="color: red; margin-left: 20px;">No Parkings History Found</p>
+            <div v-else style="border: 3px solid black; width: 900px; margin: 20px;">
                 <div v-for="parking in past_parkings" style="padding: 5px;">
                     <div style="border: 3px solid black;">
                         <div style="padding: 10px;">
@@ -17,11 +17,11 @@ export default {
                         </div>
                         <div style="margin: 0px 0px 10px 10px;">
                             <span style="font-size: large;"><b>Parking Time</b> : {{parking.parking_time}}</span>
-                            <span style="margin-left: 40px; font-size: large;"><b>Parking Rate</b> : Rs. {{parking.lot_price}}/hr</span>
+                            <span style="margin-left: 40px; font-size: large;"><b>Parking Rate</b> : ₹{{parking.lot_price}}/hr</span>
                         </div>
                         <div style="margin: 0px 0px 10px 10px;">
                             <span style="font-size: large;"><b>Exit Time</b> : {{parking.exit_time}}</span>
-                            <span style="margin-left: 40px; font-size: large;"><b>Parking Cost</b> : Rs. {{parking.cost}}</span>
+                            <span style="margin-left: 40px; font-size: large;"><b>Parking Cost</b> : ₹{{parking.cost}}</span>
                         </div>
                     </div>
                 </div>

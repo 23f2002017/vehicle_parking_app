@@ -11,7 +11,7 @@ export default {
                             <div style="padding: 10px;">
                                 <span style="font-size: xx-large;">{{lot.name}}</span>
                                 <span style="padding-left: 15px; font-size: large;">{{lot.address}}, <b>{{lot.pincode}}</b></span>
-                                <span style="float: right; padding-right: 20px; font-size: xx-large;">Rs. {{lot.price}}/hr</span>
+                                <span style="float: right; padding-right: 20px; font-size: xx-large;">₹{{lot.price}}/hr</span>
                             </div>
                             <div  style="padding: 0px 0px 10px 10px;">
                                 <span style="font-size: large;"><b>ID</b> : {{lot.id}}</span>

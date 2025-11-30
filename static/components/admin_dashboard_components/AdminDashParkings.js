@@ -23,7 +23,7 @@ export default {
                                 </div>
                                 <div v-if="parking.exit_time" style="padding: 0px 0px 10px 10px;">
                                     <span style="font-size: large;"><b>Exit Time</b> : {{parking.exit_time}}</span>
-                                    <span style="padding-left: 50px; font-size: large;"><b>Parking Charge</b> : Rs. {{parking.cost}}</span>
+                                    <span style="padding-left: 50px; font-size: large;"><b>Parking Charge</b> : ₹{{parking.cost}}</span>
                                 </div>
                             </div>
                         </div>

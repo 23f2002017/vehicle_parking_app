@@ -4,7 +4,8 @@ It is a multi-user app (one requires an administrator and other users) that mana
 
 ## How to run the application ?
 
-0. Navigate to the project folder
+0. Navigate to the project folder, run the below command to delete all the *Zone.Identifier* files  
+`find . -type f -name '*:Zone.Identifier' -exec rm -f {} \;`
 
 1. Create a virtual environment  
 `python3 -m venv .venv`  

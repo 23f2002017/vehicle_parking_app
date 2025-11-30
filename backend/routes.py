@@ -228,7 +228,7 @@ def Add_Parking():
     try:
         parking_lot = ParkingLot(name=name, address=address, pincode=pincode, no_of_spots=no_of_spots, price=price)
         db.session.add(parking_lot)
-        db.session.flush()                   # Flush the session to get the parking_lot.id
+        db.session.flush()                             # Flush the session to get the parking_lot.id
         for num in range(no_of_spots):
             parking_spot = ParkingSpot(spot_no=num, lot_id=parking_lot.id)
             db.session.add(parking_spot)
@@ -549,17 +549,18 @@ def summary():
         total_current_parkings = len([parking for parking in user.parkings if not parking.exit_time])
         total_amount_spent = sum([parking.cost for parking in user.parkings if parking.cost])
 
-        plt.figure(figsize=(10, 6))
-        plt.bar(
-            ['Total Parkings', 'Total Current Parkings'],
-            [total_parkings, total_current_parkings], 
-            edgecolor="white", width = 0.5, color=['deepskyblue', 'goldenrod']
-        )
-        plt.title("Parking Management System Summary")
-        plt.xlabel("Metrics")
-        plt.ylabel("Count")
-        plt.savefig("./static/images/summary.png")
-        plt.close()
+        if total_parkings > 0:
+            plt.figure(figsize=(10, 6))
+            plt.bar(
+                ['Total Parkings', 'Total Current Parkings'],
+                [total_parkings, total_current_parkings], 
+                edgecolor="white", width = 0.5, color=['deepskyblue', 'goldenrod']
+            )
+            plt.title("Parking Management System Summary")
+            plt.xlabel("Metrics")
+            plt.ylabel("Count")
+            plt.savefig("./static/images/summary.png")
+            plt.close()
 
         return jsonify({'details' : 
                             [{"total_parkings": total_parkings,

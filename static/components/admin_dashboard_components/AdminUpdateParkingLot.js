@@ -10,7 +10,7 @@ export default {
                         <p>Address : <textarea type="text" v-model="LotDetails.address"/></p>
                         <p>Pincode : <input type="text" v-model="LotDetails.pincode"/></p>
                         <p>No of Spots : <input type="number" v-model="LotDetails.no_of_spots"/></p>
-                        <p>Price : <input type="number" v-model="LotDetails.price"/></p>    
+                        <p>Price/hr : <input type="number" v-model="LotDetails.price"/></p>    
                         <button type="submit"> Save </button>
                 </fieldset>
             </form> 

@@ -36,7 +36,7 @@ def user_csv_report_task(id):
 
 @shared_task(ignore_result=False, name='monthly_activity_report')
 def monthly_activity_report_task():
-    users = User.query.all()
+    users = User.query.filter(User.active == True).all()
     for user in users[1:]:
         data = {
             'name' : user.name,
@@ -84,7 +84,7 @@ def daily_reminder_task(data):
             Number of Spots: {{ data.no_of_spots }}
             Price per Hour: ₹{{ data.price }}  (Prices correct at the time of booking)
                      
-        Visit our platform to book your spot now!
+        Visit our application to book your spot now!
         Thank you for choosing ParkEase!
     """)
     url = "https://chat.googleapis.com/v1/spaces/AAQAahwCgc8/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=G3VWWgQUSoBiH4QsJA0jI5KLLYKNIx81It14Ob_dTLM"

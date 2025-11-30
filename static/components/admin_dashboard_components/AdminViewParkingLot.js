@@ -17,7 +17,7 @@ export default {
                 </div>
                 <div style="padding: 10px;">
                     <span style="font-size: large;"><b>Price</b> : </span>
-                    <span style="font-size: xx-large;">Rs. {{LotDetails.price}}/hr</span>
+                    <span style="font-size: xx-large;">₹{{LotDetails.price}}/hr</span>
                 </div>
             </div>
             <hr/> 
